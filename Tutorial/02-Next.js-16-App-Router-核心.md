@@ -632,12 +632,256 @@ export default function AboutPage() {
 
 ---
 
-## 2.12 总结
+## 2.12 加载与错误状态
+
+Next.js 提供文件级（file-based）的加载和错误处理机制。
+
+### loading.tsx - 加载状态
+
+当页面加载时自动显示的加载界面。
+
+```typescript
+// app/projects/[projectId]/loading.tsx
+"use client";
+
+import { Loader2 } from "lucide-react";
+
+export default function Loading() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+```
+
+**特点**：
+- 放置在 `layout.tsx` 同级，在布局渲染时自动启用
+- 支持 React Suspense，流式加载
+- 可以是客户端组件（用于动画）或服务端组件（用于数据预加载）
+
+### notFound.tsx - 404 页面
+
+当 `notFound()` 被调用或路由不存在时显示。
+
+```typescript
+// app/projects/[projectId]/not-found.tsx
+export default function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full">
+      <h2>Project Not Found</h2>
+      <p>Could not find the requested project.</p>
+    </div>
+  );
+}
+```
+
+**触发方式**：
+
+```typescript
+// 在服务端组件中调用
+import { notFound } from "next/navigation";
+
+export default async function ProjectPage({ params }) {
+  const project = await getProject(params.projectId);
+
+  if (!project) {
+    notFound();  // 渲染最近的 notFound.tsx
+  }
+
+  return <ProjectView project={project} />;
+}
+```
+
+### 全局错误边界
+
+```typescript
+// app/global-error.tsx - 全局错误处理（必须是客户端组件）
+"use client";
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <h2>Something went wrong!</h2>
+        <button onClick={() => reset()}>Try again</button>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+## 2.13 元数据 API
+
+Next.js 16 提供强大的元数据管理功能，用于 SEO 优化。
+
+### 静态 metadata
+
+```typescript
+// app/about/page.tsx
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "About Polaris",           // 页面标题
+  description: "Learn about our AI-powered cloud IDE",  // 页面描述
+  keywords: ["IDE", "AI", "cloud", "coding"],  // 关键词
+  authors: [{ name: "Polaris Team" }],
+  openGraph: {                      // Open Graph（社交分享）
+    title: "About Polaris",
+    description: "AI-powered cloud IDE",
+    type: "website",
+  },
+};
+
+export default function AboutPage() {
+  return <About />;
+}
+```
+
+### 动态 generateMetadata
+
+根据页面数据动态生成元数据。
+
+```typescript
+// app/projects/[projectId]/page.tsx
+import type { Metadata } from "next";
+import { getProject } from "@/lib/projects";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}): Promise<Metadata> {
+  const { projectId } = await params;
+  const project = await getProject(projectId);
+
+  return {
+    title: project ? `${project.name} - Polaris` : "Project Not Found",
+    description: project?.description ?? "View this project in Polaris",
+  };
+}
+```
+
+### 布局级 metadata
+
+```typescript
+// app/projects/[projectId]/layout.tsx
+export const metadata: Metadata = {
+  title: {
+    default: "Polaris IDE",          // 默认标题
+    template: "%s | Polaris IDE",   // 标题模板
+  },
+};
+
+// 子页面标题会自动拼接：如 "My Project | Polaris IDE"
+```
+
+### 图标与 Manifest
+
+```typescript
+// app/layout.tsx
+export const metadata: Metadata = {
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
+};
+```
+
+---
+
+## 2.14 Middleware 与路由守卫
+
+Middleware 是在请求到达服务器之前执行的代码，用于认证、重定向等。
+
+### 创建 Middleware
+
+```typescript
+// src/middleware.ts 或 middleware.ts（在项目根目录）
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+
+// 定义需要认证的路由
+const isProtectedRoute = createRouteMatcher([
+  "/projects(.*)",
+  "/api(.*)",
+]);
+
+export default clerkMiddleware((auth, req) => {
+  if (isProtectedRoute(req)) {
+    // 保护路由：未登录用户重定向到登录页
+    auth().protect();
+  }
+});
+
+export const config = {
+  matcher: [
+    // 跳过静态文件、Next.js 内部路由
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv)|docx?|xlsx?|zip|webmanifest).*)",
+    "/(api|trpc)(.*)",
+  ],
+};
+```
+
+### Clerk 的 auth() 与 protect()
+
+```typescript
+export default clerkMiddleware((auth, req) => {
+  if (isProtectedRoute(req)) {
+    // 方式 1：自动重定向（推荐）
+    auth().protect();
+
+    // 方式 2：手动检查并重定向
+    const { userId } = auth();
+    if (!userId) {
+      const url = new URL("/sign-in", req.url);
+      url.searchParams.set("redirect_url", req.url);
+      return NextResponse.redirect(url);
+    }
+  }
+});
+```
+
+### 中间件的执行顺序
+
+```
+请求 → Middleware → Route Handler / Page
+         ↓
+    1. Clerk 认证检查
+    2. 重定向处理
+    3. 继续到目标页面
+```
+
+### 常见使用场景
+
+| 场景 | 示例 |
+|------|------|
+| 认证守卫 | 未登录用户访问 `/projects` 重定向到 `/sign-in` |
+| A/B 测试 | 根据 Cookie 分配不同版本 |
+| 日志记录 | 记录所有请求 |
+| 性能监控 | 测量响应时间 |
+
+---
+
+## 2.15 总结
 
 | 概念 | 关键点 |
 |------|--------|
 | **Layout** | 嵌套结构，共享 UI，params 通过 children 传递 |
 | **Page** | 叶子节点，对应具体路由 |
+| **loading.tsx** | 加载状态，路由切换时自动显示 |
+| **notFound.tsx** | 404 页面，调用 notFound() 时渲染 |
+| **metadata** | 页面元数据，用于 SEO，支持静态和动态生成 |
+| **Middleware** | 请求拦截器，用于认证、重定向等 |
 | **服务端组件** | 默认，可以 async/await，访问数据库 |
 | **客户端组件** | 需要 `"use client"`，可以使用 useState/useEffect |
 | **API Route** | `app/api/*/route.ts`，处理 HTTP 请求 |
