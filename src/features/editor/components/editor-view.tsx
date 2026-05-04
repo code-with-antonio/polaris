@@ -33,7 +33,7 @@ export const EditorView = ({ projectId }: { projectId: Id<"projects"> }) => {
         pendingContentRef.current = null;
       }
     };
-  }, [activeTabId, activeFile, updateFile]);
+  }, [activeTabId]);
 
   return (
     <div className="h-full flex flex-col">
