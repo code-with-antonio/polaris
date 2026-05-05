@@ -17,6 +17,7 @@ export const EditorView = ({ projectId }: { projectId: Id<"projects"> }) => {
   const activeFile = useFile(activeTabId);
   const updateFile = useUpdateFile();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingContentRef = useRef<string | null>(null);
 
   const isActiveFileBinary = activeFile && activeFile.storageId;
   const isActiveFileText = activeFile && !activeFile.storageId;
@@ -27,8 +28,14 @@ export const EditorView = ({ projectId }: { projectId: Id<"projects"> }) => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      if (pendingContentRef.current !== null && activeTabId) {
+        updateFile({ id: activeTabId, content: pendingContentRef.current });
+        pendingContentRef.current = null;
+      }
     };
-  }, [activeTabId]);
+  }, [
+    activeTabId  
+  ]);
 
   return (
     <div className="h-full flex flex-col">
@@ -54,12 +61,15 @@ export const EditorView = ({ projectId }: { projectId: Id<"projects"> }) => {
             fileName={activeFile.name}
             initialValue={activeFile.content}
             onChange={(content: string) => {
+              pendingContentRef.current = content;
+
               if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
               }
 
               timeoutRef.current = setTimeout(() => {
                 updateFile({ id: activeFile._id, content });
+                pendingContentRef.current = null;
               }, DEBOUNCE_MS);
             }}
           />
