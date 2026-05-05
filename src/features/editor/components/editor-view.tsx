@@ -28,12 +28,14 @@ export const EditorView = ({ projectId }: { projectId: Id<"projects"> }) => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      if (pendingContentRef.current && activeFile) {
-        updateFile({ id: activeFile._id, content: pendingContentRef.current });
+      if (pendingContentRef.current !== null && activeTabId) {
+        updateFile({ id: activeTabId, content: pendingContentRef.current });
         pendingContentRef.current = null;
       }
     };
-  }, [activeTabId]);
+  }, [
+    activeTabId  
+  ]);
 
   return (
     <div className="h-full flex flex-col">
