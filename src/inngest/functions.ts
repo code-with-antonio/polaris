@@ -22,6 +22,7 @@ export const demoGenerate = inngest.createFunction(
             url,
             { formats: ["markdown"] },
           );
+          
           return result.markdown ?? null;
         })
       );
