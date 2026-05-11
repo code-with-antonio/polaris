@@ -5,6 +5,7 @@ import { NonRetriableError } from "inngest";
 
 import { convex } from "@/lib/convex-client";
 import { inngest } from "@/inngest/client";
+import { githubImportRepo } from "@/inngest/events";
 
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -16,9 +17,18 @@ interface ImportGithubRepoEvent {
   githubToken: string;
 }
 
+type GitTree = {
+  tree: {
+    type?: string;
+    path?: string;
+    sha?: string;
+  }[];
+};
+
 export const importGithubRepo = inngest.createFunction(
   {
     id: "import-github-repo",
+    triggers: [githubImportRepo],
     onFailure: async ({ event, step }) => {
       const internalKey = process.env.POLARIS_CONVEX_INTERNAL_KEY;
       if (!internalKey) return;
@@ -34,7 +44,6 @@ export const importGithubRepo = inngest.createFunction(
       });
     },
   },
-  { event: "github/import.repo" },
   async ({ event, step }) => {
     const { owner, repo, projectId, githubToken } =
       event.data as ImportGithubRepoEvent;
@@ -75,7 +84,7 @@ export const importGithubRepo = inngest.createFunction(
 
         return data;
       }
-    });
+    }) as GitTree;
 
     // Sort folders by depth so parents are created before children
     // Input:  [{ path: "src/components" }, { path: "src" }, { path: "src/components/ui" }]
@@ -115,7 +124,7 @@ export const importGithubRepo = inngest.createFunction(
       }
 
       return map;
-    });
+    }) as Record<string, Id<"files">>;
 
     // Get all files (blobs) from the tree
     const allFiles = tree.tree.filter(

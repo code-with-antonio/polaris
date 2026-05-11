@@ -1,10 +1,11 @@
 import { createAgent, anthropic, createNetwork } from '@inngest/agent-kit';
 
 import { inngest } from "@/inngest/client";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { NonRetriableError } from "inngest";
 import { convex } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api";
+import { messageCancel, messageSent } from "@/inngest/events";
 import { 
   CODING_AGENT_SYSTEM_PROMPT, 
   TITLE_GENERATOR_SYSTEM_PROMPT
@@ -29,9 +30,10 @@ interface MessageEvent {
 export const processMessage = inngest.createFunction(
   {
     id: "process-message",
+    triggers: [messageSent],
     cancelOn: [
       {
-        event: "message/cancel",
+        event: messageCancel,
         if: "event.data.messageId == async.data.messageId",
       },
     ],
@@ -51,9 +53,6 @@ export const processMessage = inngest.createFunction(
         });
       }
     }
-  },
-  {
-    event: "message/sent",
   },
   async ({ event, step }) => {
     const { 
@@ -78,7 +77,7 @@ export const processMessage = inngest.createFunction(
         internalKey,
         conversationId,
       });
-    });
+    }) as Doc<"conversations"> | null;
 
     if (!conversation) {
       throw new NonRetriableError("Conversation not found");
@@ -91,7 +90,7 @@ export const processMessage = inngest.createFunction(
         conversationId,
         limit: 10,
       });
-    });
+    }) as Doc<"messages">[];
 
     // Build system prompt with conversation history (exclude the current processing message)
     let systemPrompt = CODING_AGENT_SYSTEM_PROMPT;

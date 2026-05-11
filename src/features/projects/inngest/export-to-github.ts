@@ -4,6 +4,7 @@ import { NonRetriableError } from "inngest";
 
 import { convex } from "@/lib/convex-client";
 import { inngest } from "@/inngest/client";
+import { githubExportCancel, githubExportRepo } from "@/inngest/events";
 
 import { api } from "../../../../convex/_generated/api";
 import { Doc, Id } from "../../../../convex/_generated/dataModel";
@@ -20,12 +21,20 @@ type FileWithUrl = Doc<"files"> & {
   storageUrl: string | null;
 };
 
+type GitTreeItem = {
+  path: string;
+  mode: "100644";
+  type: "blob";
+  sha: string;
+};
+
 export const exportToGithub = inngest.createFunction(
   {
     id: "export-to-github",
+    triggers: [githubExportRepo],
     cancelOn: [
       {
-        event: "github/export.cancel",
+        event: githubExportCancel,
         if: "event.data.projectId == async.data.projectId"
       },
     ],
@@ -43,9 +52,6 @@ export const exportToGithub = inngest.createFunction(
         });
       });
     }
-  },
-  {
-    event: "github/export.repo"
   },
   async ({ event, step }) => {
     const {
@@ -75,7 +81,7 @@ export const exportToGithub = inngest.createFunction(
     // Get authenticated user
     const { data: user } = await step.run("get-github-user", async () => {
       return await octokit.rest.users.getAuthenticated();
-    });
+    }) as Awaited<ReturnType<typeof octokit.rest.users.getAuthenticated>>;
 
     // Create the new repository with auto_init to have an initial commit
     const { data: repo } = await step.run("create-repo", async () => {
@@ -85,7 +91,7 @@ export const exportToGithub = inngest.createFunction(
         private: visibility === "private",
         auto_init: true,
       });
-    });
+    }) as Awaited<ReturnType<typeof octokit.rest.repos.createForAuthenticatedUser>>;
 
     // Wait for GitHub to initialize the repo (auto_init is async on GitHub's side)
     await step.sleep("wait-for-repo-init", "3s");
@@ -98,7 +104,7 @@ export const exportToGithub = inngest.createFunction(
         ref: "heads/main",
       });
       return ref.object.sha;
-    });
+    }) as string;
 
     // Fetch all project files with storage URLs
     const files = await step.run("fetch-project-files", async () => {
@@ -106,7 +112,7 @@ export const exportToGithub = inngest.createFunction(
         internalKey,
         projectId,
       })) as FileWithUrl[];
-    });
+    }) as FileWithUrl[];
 
     // Build a map of file IDs to their full paths
     const buildFilePaths = (files: FileWithUrl[]) => {
@@ -148,12 +154,7 @@ export const exportToGithub = inngest.createFunction(
 
     // Create blobs for each file
     const treeItems = await step.run("create-blobs", async () => {
-      const items: {
-        path: string;
-        mode: "100644";
-        type: "blob";
-        sha: string;
-      }[] = [];
+      const items: GitTreeItem[] = [];
 
       for (const [path, file] of fileEntries) {
         let content: string;
@@ -189,7 +190,7 @@ export const exportToGithub = inngest.createFunction(
       }
 
       return items;
-    });
+    }) as GitTreeItem[];
 
     if (treeItems.length === 0) {
       throw new NonRetriableError("Failed to create any file blobs");
@@ -202,7 +203,7 @@ export const exportToGithub = inngest.createFunction(
         repo: repoName,
         tree: treeItems,
       });
-    });
+    }) as Awaited<ReturnType<typeof octokit.rest.git.createTree>>;
 
     // Create the commit with the initial commit as parent
     const { data: commit } = await step.run("create-commit", async () => {
@@ -213,7 +214,7 @@ export const exportToGithub = inngest.createFunction(
         tree: tree.sha,
         parents: [initialCommitSha],
       });
-    });
+    }) as Awaited<ReturnType<typeof octokit.rest.git.createCommit>>;
 
     // Update the main branch reference to point to our new commit
     await step.run("update-branch-ref", async () => {

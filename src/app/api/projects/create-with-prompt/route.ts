@@ -11,6 +11,7 @@ import {
 import { DEFAULT_CONVERSATION_TITLE } from "@/features/conversations/constants";
 
 import { inngest } from "@/inngest/client";
+import { messageSent } from "@/inngest/events";
 import { convex } from "@/lib/convex-client";
 
 import { api } from "../../../../../convex/_generated/api";
@@ -79,15 +80,14 @@ export async function POST(request: Request) {
   );
 
   // Trigger Inngest to process the message
-  await inngest.send({
-    name: "message/sent",
-    data: {
+  await inngest.send(
+    messageSent.create({
       messageId: assistantMessageId,
       conversationId,
       projectId,
       message: prompt,
-    },
-  });
+    })
+  );
 
   return NextResponse.json({ projectId });
 };

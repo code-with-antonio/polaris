@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 import { inngest } from "@/inngest/client";
+import { githubExportRepo } from "@/inngest/events";
 
 import { Id } from "../../../../../convex/_generated/dataModel";
 
@@ -49,17 +50,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const event = await inngest.send({
-    name: "github/export.repo",
-    data: {
-      projectId,
+  const event = await inngest.send(
+    githubExportRepo.create({
+      projectId: projectId as Id<"projects">,
       repoName,
       visibility,
       description,
       githubToken,
-      internalKey,
-    },
-  });
+    })
+  );
 
   return NextResponse.json({ 
     success: true, 
