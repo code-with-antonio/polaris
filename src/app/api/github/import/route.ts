@@ -4,6 +4,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 
 import { convex } from "@/lib/convex-client";
 import { inngest } from "@/inngest/client";
+import { githubImportRepo } from "@/inngest/events";
 
 import { api } from "../../../../../convex/_generated/api";
 
@@ -69,15 +70,14 @@ export async function POST(request: Request) {
     ownerId: userId,
   });
 
-  const event = await inngest.send({
-    name: "github/import.repo",
-    data: {
+  const event = await inngest.send(
+    githubImportRepo.create({
       owner,
       repo,
       projectId,
       githubToken,
-    },
-  });
+    })
+  );
 
   return NextResponse.json({ 
     success: true, 

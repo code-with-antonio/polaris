@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { inngest } from "@/inngest/client";
+import { messageCancel } from "@/inngest/events";
 import { convex } from "@/lib/convex-client";
 
 import { api } from "../../../../../convex/_generated/api";
@@ -47,12 +48,11 @@ export async function POST(request: Request) {
   // Cancel all processing messages
   const cancelledIds = await Promise.all(
     processingMessages.map(async (msg) => {
-      await inngest.send({
-        name: "message/cancel",
-        data: {
+      await inngest.send(
+        messageCancel.create({
           messageId: msg._id,
-        },
-      });
+        })
+      );
 
       await convex.mutation(api.system.updateMessageStatus, {
         internalKey,

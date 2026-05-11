@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { convex } from "@/lib/convex-client";
 import { inngest } from "@/inngest/client";
+import { githubExportCancel } from "@/inngest/events";
 
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
@@ -31,12 +32,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const event = await inngest.send({
-    name: "github/export.cancel",
-    data: {
-      projectId,
-    },
-  });
+  const event = await inngest.send(
+    githubExportCancel.create({
+      projectId: projectId as Id<"projects">,
+    })
+  );
 
   // Update status to cancelled
   await convex.mutation(api.system.updateExportStatus, {
