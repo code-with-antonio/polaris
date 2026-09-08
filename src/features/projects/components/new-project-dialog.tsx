@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import ky from "ky";
+import { useState } from "react";
+import ky, { HTTPError } from "ky";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -54,8 +54,21 @@ export const NewProjectDialog = ({
       onOpenChange(false);
       setInput("");
       router.push(`/projects/${projectId}`);
-    } catch {
-      toast.error("Unable to create project");
+    } catch (error) {
+      console.error("Create project failed:", error);
+      let message = "Unable to create project";
+      if (error instanceof HTTPError) {
+        try {
+          const body = await error.response.json<{ error?: string }>();
+          if (body?.error) message = body.error;
+          else message = `Request failed (${error.response.status})`;
+        } catch {
+          message = `Request failed (${error.response.status})`;
+        }
+      } else if (error instanceof Error && error.message) {
+        message = error.message;
+      }
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -76,7 +89,7 @@ export const NewProjectDialog = ({
         <PromptInput onSubmit={handleSubmit} className="border-none!">
           <PromptInputBody>
             <PromptInputTextarea
-              placeholder="Ask Polaris to build..."
+              placeholder="Ask Plex to build..."
               onChange={(e) => setInput(e.target.value)}
               value={input}
               disabled={isSubmitting}

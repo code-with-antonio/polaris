@@ -136,7 +136,9 @@ export const WebPreviewUrl = ({
   const [inputValue, setInputValue] = useState(url);
 
   // Sync input value with context URL when it changes externally
+  // (external store sync - intentionally in effect).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInputValue(url);
   }, [url]);
 
