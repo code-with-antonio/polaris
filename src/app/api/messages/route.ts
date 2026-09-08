@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const internalKey = process.env.POLARIS_CONVEX_INTERNAL_KEY;
+  const internalKey = process.env.PLEX_CONVEX_INTERNAL_KEY;
 
   if (!internalKey) {
     return NextResponse.json(

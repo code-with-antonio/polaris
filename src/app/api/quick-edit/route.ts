@@ -2,8 +2,11 @@ import { z } from "zod";
 import { generateText, Output } from "ai";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { anthropic } from "@ai-sdk/anthropic";
 
+import {
+  resolveTextModel,
+  withGroqFallback,
+} from "@/lib/ai-providers";
 import { firecrawl } from "@/lib/firecrawl";
 
 const quickEditSchema = z.object({
@@ -101,11 +104,13 @@ export async function POST(request: Request) {
       .replace("{instruction}", instruction)
       .replace("{documentation}", documentationContext);
 
-    const { output } = await generateText({
-      model: anthropic("claude-3-7-sonnet-20250219"),
-      output: Output.object({ schema: quickEditSchema }),
-      prompt,
-    });
+    const { output } = await withGroqFallback((provider) =>
+      generateText({
+        model: resolveTextModel(provider),
+        output: Output.object({ schema: quickEditSchema }),
+        prompt,
+      }),
+    );
 
     return NextResponse.json({ editedCode: output.editedCode });
   } catch (error) {

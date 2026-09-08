@@ -7,7 +7,6 @@ import {
 } from "@/features/preview/utils/file-tree";
 import { useFiles } from "@/features/projects/hooks/use-files";
 
-import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 
 // Singleton WebContainer instance
@@ -156,10 +155,11 @@ export const useWebContainer = ({
     }
   }, [files, status]);
 
-  // Reset when disabled
+  // Reset when disabled - external lifecycle sync.
   useEffect(() => {
     if (!enabled) {
       hasStartedRef.current = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus("idle");
       setPreviewUrl(null);
       setError(null);
